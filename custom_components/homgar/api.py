@@ -15,6 +15,7 @@ try:
 except ImportError:
     mqtt = None
 
+from .const import API_BASE_URL, DEFAULT_APP_CODE
 from .devices import HomgarHome, MODEL_CODE_MAPPING, HomgarHubDevice
 from .logutil import TRACE, get_logger
 
@@ -39,7 +40,8 @@ class HomgarApi:
     def __init__(
             self,
             auth_cache: Optional[dict] = None,
-            api_base_url: str = "https://region3.homgarus.com",
+            api_base_url: str = API_BASE_URL,
+            app_code: str = DEFAULT_APP_CODE,
             requests_session: requests.Session = None
     ):
         """
@@ -68,6 +70,7 @@ class HomgarApi:
         
         self.cache = auth_cache or {}
         self.base = api_base_url
+        self.app_code = str(app_code)
         self.mqtt_client = None
         self.mqtt_connected = False
         self.status_callbacks = []
@@ -85,7 +88,7 @@ class HomgarApi:
         base_headers = {
             "lang": "en",
             "version": "2.21.2075",
-            "appCode": "1",
+            "appCode": str(self.cache.get("app_code", self.app_code)),
             "sceneType": "1",
             "Content-Type": "application/json; charset=utf-8",
             "User-Agent": "okhttp/4.9.2"
@@ -148,13 +151,22 @@ class HomgarApi:
     def _post_json(self, path, body, **kwargs):
         return self._request_json("POST", path, json=body, **kwargs)
 
-    def login(self, email: str, password: str, area_code="31") -> None:
+    def login(
+        self,
+        email: str,
+        password: str,
+        area_code: str = "31",
+        app_code: str | None = None,
+    ) -> None:
         """
         Perform a new login.
         :param email: Account e-mail
         :param password: Account password
         :param area_code: Seems to need to be the phone country code associated with the account, e.g. "31" for NL
+        :param app_code: App branding code, e.g. "1" for HomGar or "2" for RainPoint
         """
+        app_code = str(app_code or self.app_code)
+        self.app_code = app_code
         data = self._post_json("/auth/basic/app/login", {
             "areaCode": area_code,
             "phoneOrEmail": email,
@@ -163,6 +175,7 @@ class HomgarApi:
         }, with_auth=False)
         user_data = data.get('user', {})
         self.cache['email'] = email
+        self.cache['app_code'] = app_code
         self.cache['token'] = data.get('token')
         self.cache['token_expires'] = datetime.utcnow().timestamp() + data.get('tokenExpired')
         self.cache['refresh_token'] = data.get('refreshToken')
@@ -328,17 +341,25 @@ class HomgarApi:
             "param": ""
         }, headers={"Connection": "close"})
 
-    def ensure_logged_in(self, email: str, password: str, area_code: str = "31") -> None:
+    def ensure_logged_in(
+        self,
+        email: str,
+        password: str,
+        area_code: str = "31",
+        app_code: str | None = None,
+    ) -> None:
         """
         Ensures this API object has valid credentials.
         Attempts to verify the token stored in the auth cache. If invalid, attempts to login.
         See login() for parameter info.
         """
+        app_code = str(app_code or self.app_code)
         if (
                 self.cache.get('email') != email or
+                self.cache.get('app_code') != app_code or
                 datetime.fromtimestamp(self.cache.get('token_expires', 0)) - datetime.utcnow() < timedelta(minutes=60)
         ):
-            self.login(email, password, area_code=area_code)
+            self.login(email, password, area_code=area_code, app_code=app_code)
 
     def subscribe_to_device_status(self, hid: str, hid_list: List[str], devices: List[dict]) -> Optional[dict]:
         """

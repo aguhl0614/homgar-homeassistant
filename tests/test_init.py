@@ -8,7 +8,12 @@ async def test_setup_entry(hass, mock_setup_entry):
     """Test setting up the integration."""
     entry = MockConfigEntry(
         domain="homgar",
-        data={"username": "test@example.com", "password": "test-password"},
+        data={
+            "email": "test@example.com",
+            "password": "test-password",
+            "app_code": "1",
+            "area_code": "1",
+        },
     )
     entry.add_to_hass(hass)
     

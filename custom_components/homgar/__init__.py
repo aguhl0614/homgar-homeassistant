@@ -13,8 +13,11 @@ from homeassistant.helpers import config_validation as cv
 from .api import HomgarApi, HomgarApiException
 from .const import (
     CONF_AREA_CODE, 
+    CONF_APP_CODE,
     CONF_EMAIL, 
     CONF_PASSWORD, 
+    DEFAULT_APP_CODE,
+    DEFAULT_AREA_CODE,
     DOMAIN, 
     PLATFORMS,
     SERVICE_START_IRRIGATION,
@@ -53,18 +56,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: HomgarConfigEntry) -> bo
     """Set up HomGar from a config entry."""
     email = entry.data[CONF_EMAIL]
     password = entry.data[CONF_PASSWORD]
-    area_code = entry.data[CONF_AREA_CODE]
+    app_code = entry.options.get(CONF_APP_CODE, entry.data.get(CONF_APP_CODE, DEFAULT_APP_CODE))
+    area_code = entry.options.get(CONF_AREA_CODE, entry.data.get(CONF_AREA_CODE, DEFAULT_AREA_CODE))
 
-    api = HomgarApi()
+    api = HomgarApi(app_code=app_code)
     
     try:
-        await hass.async_add_executor_job(api.login, email, password, area_code)
+        await hass.async_add_executor_job(api.login, email, password, area_code, app_code)
     except HomgarApiException as err:
         _LOGGER.error("Failed to login to HomGar API: %s", err)
         raise ConfigEntryNotReady from err
 
     coordinator = HomgarDataUpdateCoordinator(
-        hass, api, email, password, area_code
+        hass, api, email, password, area_code, app_code
     )
     coordinator.config_entry = entry
 

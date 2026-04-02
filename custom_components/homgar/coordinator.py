@@ -26,6 +26,7 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         email: str,
         password: str,
         area_code: str,
+        app_code: str,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -38,6 +39,7 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.email = email
         self.password = password
         self.area_code = area_code
+        self.app_code = app_code
         self.homes: list = []
         self.devices: dict[str, Any] = {}
         self.mqtt_connected = False
@@ -53,7 +55,11 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Polling is now a backup to MQTT
             # Ensure we're logged in
             await self.hass.async_add_executor_job(
-                self.api.ensure_logged_in, self.email, self.password, self.area_code
+                self.api.ensure_logged_in,
+                self.email,
+                self.password,
+                self.area_code,
+                self.app_code,
             )
 
             # Get homes

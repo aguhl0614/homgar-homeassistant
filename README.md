@@ -8,6 +8,13 @@ Home Assistant integration for **HomGar / RainPoint / Diivoo** devices.
 
 This project is a stabilized and extended version of the HomGar integration, specifically optimized for irrigation timers and weather stations.
 
+## Authentication Notes
+
+The integration now exposes both `app_code` and `area_code` during setup.
+
+- `app_code` identifies the app brand: `1` = HomGar, `2` = RainPoint, `4` = RainPoint Agri
+- `area_code` is the phone country code associated with the account: for example `1` = US/Canada, `31` = Netherlands, `33` = France
+
 ---
 
 ## 🚀 Key Features

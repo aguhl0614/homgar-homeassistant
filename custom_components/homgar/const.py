@@ -9,9 +9,11 @@ DOMAIN: Final = "homgar"
 CONF_EMAIL: Final = "email"
 CONF_PASSWORD: Final = "password"
 CONF_AREA_CODE: Final = "area_code"
+CONF_APP_CODE: Final = "app_code"
 CONF_DURATION: Final = "duration"
 
 # Default values
+DEFAULT_APP_CODE: Final = "1"
 DEFAULT_AREA_CODE: Final = "33"
 DEFAULT_UPDATE_INTERVAL: Final = 3600  # 1 hour (relying on MQTT for real-time updates)
 

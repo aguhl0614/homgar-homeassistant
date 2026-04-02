@@ -14,8 +14,10 @@ from homeassistant.exceptions import HomeAssistantError
 from .api import HomgarApi, HomgarApiException
 from .const import (
     CONF_AREA_CODE,
+    CONF_APP_CODE,
     CONF_EMAIL,
     CONF_PASSWORD,
+    DEFAULT_APP_CODE,
     DEFAULT_AREA_CODE,
     DOMAIN,
     CONF_DURATION,
@@ -28,6 +30,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
+        vol.Optional(CONF_APP_CODE, default=DEFAULT_APP_CODE): str,
         vol.Optional(CONF_AREA_CODE, default=DEFAULT_AREA_CODE): str,
     }
 )
@@ -35,11 +38,15 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect."""
-    api = HomgarApi()
+    api = HomgarApi(app_code=data[CONF_APP_CODE])
     
     try:
         await hass.async_add_executor_job(
-            api.login, data[CONF_EMAIL], data[CONF_PASSWORD], data[CONF_AREA_CODE]
+            api.login,
+            data[CONF_EMAIL],
+            data[CONF_PASSWORD],
+            data[CONF_AREA_CODE],
+            data[CONF_APP_CODE],
         )
     except HomgarApiException as err:
         if err.code == 1005:  # Invalid credentials
@@ -130,6 +137,20 @@ class HomgarOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_APP_CODE,
+                        default=self.config_entry.options.get(
+                            CONF_APP_CODE,
+                            self.config_entry.data.get(CONF_APP_CODE, DEFAULT_APP_CODE),
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_AREA_CODE,
+                        default=self.config_entry.options.get(
+                            CONF_AREA_CODE,
+                            self.config_entry.data.get(CONF_AREA_CODE, DEFAULT_AREA_CODE),
+                        ),
+                    ): str,
                     vol.Optional(
                         CONF_DURATION,
                         default=self.config_entry.options.get(

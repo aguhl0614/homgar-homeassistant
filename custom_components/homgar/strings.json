@@ -4,11 +4,16 @@
     "step": {
       "user": {
         "title": "HomGar",
-        "description": "Set up your HomGar account to control your irrigation devices.",
+        "description": "Set up your HomGar or RainPoint account to control your irrigation devices.",
         "data": {
           "email": "Email",
           "password": "Password",
+          "app_code": "App Code",
           "area_code": "Area Code"
+        },
+        "data_description": {
+          "app_code": "App code mapping: 1 = HomGar, 2 = RainPoint, 4 = RainPoint Agri.",
+          "area_code": "Phone country code for the account, for example 1 = US/Canada, 31 = Netherlands, 33 = France."
         }
       }
     },
@@ -28,7 +33,13 @@
         "title": "HomGar Options",
         "description": "Configure options for your HomGar integration.",
         "data": {
+          "app_code": "App Code",
+          "area_code": "Area Code",
           "duration": "Default irrigation duration (seconds)"
+        },
+        "data_description": {
+          "app_code": "App code mapping: 1 = HomGar, 2 = RainPoint, 4 = RainPoint Agri.",
+          "area_code": "Phone country code for the account, for example 1 = US/Canada, 31 = Netherlands, 33 = France."
         }
       }
     }
