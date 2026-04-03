@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 
 from homeassistant.const import (
     PERCENTAGE,
@@ -53,6 +54,7 @@ from .devices import (
     HomgarWeatherStation,
     HomgarIndoorSensor,
     HTV405FRF,
+    HTV145FRF,
 )
 
 from .entity import HomgarEntity
@@ -195,6 +197,27 @@ SENSOR_DESCRIPTIONS = {
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sync",
     ),
+    "experimental_raw_d01": SensorEntityDescription(
+        key="experimental_raw_d01",
+        name="Experimental Raw D01",
+        icon="mdi:code-tags",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    "experimental_tail_hex": SensorEntityDescription(
+        key="experimental_tail_hex",
+        name="Experimental Candidate Tail Hex",
+        icon="mdi:hexadecimal",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    "experimental_tail_value": SensorEntityDescription(
+        key="experimental_tail_value",
+        name="Experimental Candidate Tail Value",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 }
 
 
@@ -262,7 +285,7 @@ async def async_setup_entry(
                     HomgarCountdownTimerSensor(coordinator, device_id, device, zone),
                     HomgarDurationSettingSensor(coordinator, device_id, device, zone),
                 ])
-        elif isinstance(device, HTV405FRF) or getattr(device, 'modelCode', 0) == 38:
+        elif isinstance(device, HTV405FRF) or getattr(device, 'model_code', 0) == 38:
             _LOGGER.debug("[DEBUG] [SENSOR SETUP] Adding 4-zone sensors for HTV405FRF")
             for zone in [1, 2, 3, 4]:
                 entities.extend([
@@ -270,6 +293,17 @@ async def async_setup_entry(
                     HomgarCountdownTimerSensor(coordinator, device_id, device, zone),
                     HomgarDurationSettingSensor(coordinator, device_id, device, zone),
                 ])
+        elif isinstance(device, HTV145FRF) or getattr(device, 'model_code', 0) == 302:
+            _LOGGER.debug("[DEBUG] [SENSOR SETUP] Adding 1-zone sensors for HTV145FRF")
+            entities.append(HomgarLastSyncSensor(coordinator, device_id, device))
+            entities.extend([
+                HomgarZoneStatusSensor(coordinator, device_id, device, 1),
+                HomgarCountdownTimerSensor(coordinator, device_id, device, 1),
+                HomgarDurationSettingSensor(coordinator, device_id, device, 1),
+                HomgarExperimentalRawD01Sensor(coordinator, device_id, device),
+                HomgarExperimentalTailHexSensor(coordinator, device_id, device),
+                HomgarExperimentalTailValueSensor(coordinator, device_id, device),
+            ])
 
 
 
@@ -564,3 +598,51 @@ class HomgarLastSyncSensor(HomgarSensor):
         if hasattr(self.device, 'last_sync_time') and self.device.last_sync_time:
             return datetime.fromtimestamp(self.device.last_sync_time, tz=timezone.utc)
         return None
+
+
+class HomgarExperimentalRawD01Sensor(HomgarSensor):
+    """Experimental raw D01 payload sensor for HTV145FRF."""
+
+    def __init__(self, coordinator, device_id, device):
+        super().__init__(
+            coordinator,
+            device_id,
+            device,
+            SENSOR_DESCRIPTIONS["experimental_raw_d01"],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return getattr(self.device, "raw_status", None)
+
+
+class HomgarExperimentalTailHexSensor(HomgarSensor):
+    """Experimental candidate tail hex sensor for HTV145FRF."""
+
+    def __init__(self, coordinator, device_id, device):
+        super().__init__(
+            coordinator,
+            device_id,
+            device,
+            SENSOR_DESCRIPTIONS["experimental_tail_hex"],
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        return getattr(self.device, "candidate_tail_hex", None)
+
+
+class HomgarExperimentalTailValueSensor(HomgarSensor):
+    """Experimental candidate tail low-word integer sensor for HTV145FRF."""
+
+    def __init__(self, coordinator, device_id, device):
+        super().__init__(
+            coordinator,
+            device_id,
+            device,
+            SENSOR_DESCRIPTIONS["experimental_tail_value"],
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        return getattr(self.device, "candidate_tail_value", None)

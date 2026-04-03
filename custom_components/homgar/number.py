@@ -19,7 +19,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from .entity import HomgarEntity
 from .coordinator import HomgarDataUpdateCoordinator
 from .const import DOMAIN, CONF_DURATION, DEFAULT_IRRIGATION_DURATION
-from .devices import DiivooWT11W, HTV405FRF
+from .devices import DiivooWT11W, HTV405FRF, HTV145FRF
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +53,12 @@ async def async_setup_entry(
                         coordinator, device, device_id, zone_number
                     )
                 )
+        elif isinstance(device, HTV145FRF):
+            entities.append(
+                HomgarZoneDurationNumber(
+                    coordinator, device, device_id, 1
+                )
+            )
 
     if entities:
         async_add_entities(entities)

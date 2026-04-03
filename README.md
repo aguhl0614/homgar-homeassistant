@@ -30,6 +30,7 @@ The integration now exposes both `app_code` and `area_code` during setup.
 |-------|-------------|------|
 | **Diivoo WT-11W** | 3-Zone Smart Water Timer | Irrigation Control |
 | **HTV405FRF** | 4-Zone Smart Water Timer | Irrigation Control |
+| **HTV145FRF** | 1-Zone Smart Water Timer | Irrigation Control |
 | **257 / 85 / 86** | HomGar Weather Setup | Temp, Humidity, Pressure |
 | **HCS026FRF** | Soil Moisture Sensor | Garden Monitoring |
 | **HCS012ARF** | Rain Sensor | Precipitation Monitoring |

@@ -439,6 +439,12 @@ class HTV405FRF(HomgarSubDevice):
         zone = self.get_zone_status(zone_number)
         return zone['countdown_timer'] if zone else 0
 
+    def get_zone_countdown_end_time(self, zone_number: int) -> float | None:
+        zone = self.get_zone_status(zone_number)
+        if zone and zone.get('active') and zone.get('countdown_timer', 0) > 0:
+            return (self.last_sync_time or datetime.now().timestamp()) + zone['countdown_timer']
+        return None
+
     def get_zone_duration_setting(self, zone_number: int) -> int:
         zone = self.get_zone_status(zone_number)
         return zone['duration_setting'] if zone else 0
@@ -453,6 +459,185 @@ class HTV405FRF(HomgarSubDevice):
     def control_zone(self, api, zone_number: int, mode: int, duration: int = 0) -> bool:
         return api.control_device_work_mode(self.hub_device_name, self.hub_product_key, str(self.mid), self.address, zone_number, mode, duration)
 
+
+
+class HTV145FRF(HomgarSubDevice):
+    """HTV145FRF 1-Zone Smart Water Timer."""
+    MODEL_CODES = [302]
+    FRIENDLY_DESC = "HTV145FRF 1-Zone Water Timer"
+
+    def __init__(self, hub_device_name=None, hub_product_key=None, **kwargs):
+        super().__init__(**kwargs)
+        self.zones = {
+            1: {
+                "active": False,
+                "status": "off_idle",
+                "countdown_timer": 0,
+                "countdown_end_time": None,
+                "duration_setting": 0,
+            }
+        }
+        self.connection_state = None
+        self.device_state = None
+        self.hub_device_name = hub_device_name
+        self.hub_product_key = hub_product_key
+        self.hw_sequence = "000000"
+        self.raw_status = None
+        self.candidate_tail_hex = None
+        self.candidate_tail_value = None
+
+    def get_device_status_ids(self):
+        return [f"D{self.address:02d}", "connected", "state"]
+
+    def set_device_status(self, api_obj: dict, msg_time: float = None) -> None:
+        attr_id = api_obj.get('id')
+        value = api_obj.get('value') or api_obj.get('state')
+
+        if not value:
+            return
+
+        if attr_id == 'connected':
+            self.connection_state = int(value) == 1
+        elif attr_id == 'state':
+            self.device_state = value
+        elif attr_id == f"D{self.address:02d}" and "#" in value:
+            self.last_sync_time = msg_time if msg_time else datetime.now().timestamp()
+            self._parse_device_specific_status_d_value(value, msg_time=msg_time)
+
+        super().set_device_status(api_obj, msg_time=msg_time)
+
+    def _parse_device_specific_status_d_value(self, s, msg_time=None):
+        if not s or '#' not in s:
+            return
+
+        self.raw_status = s
+        hex_data = s.split('#', 1)[1]
+        zone = self.zones[1]
+
+        if len(hex_data) >= 6:
+            self.hw_sequence = hex_data[:6]
+
+        if msg_time:
+            self.last_sync_time = msg_time
+
+        zone["countdown_timer"] = 0
+        zone["countdown_end_time"] = None
+
+        status_map = {
+            "D841": "on",
+            "D821": "on",
+            "D820": "off_recent",
+            "D800": "off_idle",
+        }
+        for code, status in status_map.items():
+            if code in hex_data:
+                zone["active"] = status == "on"
+                zone["status"] = status
+                break
+
+        current_ticks = 0
+        for clock_marker in ("FEFF0F", "FF0F"):
+            pos_clk = hex_data.find(clock_marker)
+            if pos_clk >= 0 and pos_clk + len(clock_marker) + 8 <= len(hex_data):
+                clk_hex = hex_data[pos_clk + len(clock_marker):pos_clk + len(clock_marker) + 8]
+                try:
+                    current_ticks = int.from_bytes(bytes.fromhex(clk_hex), "little")
+                except Exception:
+                    current_ticks = 0
+                break
+
+        for timer_marker in ("20B7", "21B7"):
+            pos_timer = hex_data.find(timer_marker)
+            if pos_timer >= 0 and pos_timer + len(timer_marker) + 8 <= len(hex_data):
+                timer_hex = hex_data[pos_timer + len(timer_marker):pos_timer + len(timer_marker) + 8]
+                try:
+                    end_ticks = int.from_bytes(bytes.fromhex(timer_hex), "little")
+                    if end_ticks > current_ticks > 0:
+                        rem_s = end_ticks - current_ticks
+                        zone["countdown_timer"] = rem_s
+                        base_time = msg_time if msg_time else datetime.now().timestamp()
+                        zone["countdown_end_time"] = base_time + rem_s
+                    elif zone["active"]:
+                        zone["active"] = False
+                        zone["status"] = "off_idle"
+                except Exception:
+                    zone["countdown_timer"] = 0
+                break
+
+        pos_duration = hex_data.find("AD")
+        if pos_duration >= 0 and pos_duration + 6 <= len(hex_data):
+            dur_hex = hex_data[pos_duration + 2:pos_duration + 6]
+            try:
+                zone["duration_setting"] = int.from_bytes(bytes.fromhex(dur_hex), "little")
+            except Exception:
+                zone["duration_setting"] = 0
+
+        self.candidate_tail_hex = None
+        self.candidate_tail_value = None
+        tail_marker = "9F"
+        pos_tail = hex_data.find(tail_marker)
+        if pos_tail >= 0 and pos_tail + 10 <= len(hex_data):
+            tail_hex = hex_data[pos_tail:pos_tail + 10]
+            self.candidate_tail_hex = tail_hex
+            try:
+                self.candidate_tail_value = int.from_bytes(bytes.fromhex(tail_hex[:4]), "little")
+            except Exception:
+                self.candidate_tail_value = None
+
+    def get_zone_status(self, zone_number: int) -> dict | None:
+        return self.zones.get(zone_number)
+
+    def get_zone_countdown_timer(self, zone_number: int) -> int:
+        zone = self.get_zone_status(zone_number)
+        return zone['countdown_timer'] if zone else 0
+
+    def get_zone_countdown_end_time(self, zone_number: int) -> float | None:
+        zone = self.get_zone_status(zone_number)
+        return zone.get('countdown_end_time') if zone else None
+
+    def get_zone_duration_setting(self, zone_number: int) -> int:
+        zone = self.get_zone_status(zone_number)
+        return zone['duration_setting'] if zone else 0
+
+    def is_zone_active(self, zone_number: int) -> bool:
+        zone = self.get_zone_status(zone_number)
+        return zone['active'] if zone else False
+
+    def get_zone_status_text(self, zone_number: int) -> str:
+        zone = self.get_zone_status(zone_number)
+        if not zone:
+            return "Unknown"
+        status_map = {
+            'on': 'On',
+            'off_recent': 'Off (Recent)',
+            'off_idle': 'Off (Idle)'
+        }
+        return status_map.get(zone['status'], zone['status'])
+
+    def control_zone(self, api, zone_number: int, mode: int, duration: int = 0):
+        if zone_number != 1:
+            raise ValueError("Zone number must be 1 for HTV145FRF")
+
+        if not self.hub_device_name or not self.hub_product_key:
+            raise ValueError("Hub device name and product key are required for control operations")
+
+        return api.control_device_work_mode(
+            device_name=self.hub_device_name,
+            product_key=self.hub_product_key,
+            mid=str(self.mid),
+            addr=self.address,
+            port=zone_number,
+            mode=mode,
+            duration=duration
+        )
+
+    def __str__(self):
+        s = super().__str__()
+        if self.connection_state is not None:
+            s += " (connected)" if self.connection_state else " (disconnected)"
+        if self.is_zone_active(1):
+            s += " [Active zone: 1]"
+        return s
 
 
 class DiivooWT11W(HomgarSubDevice):
@@ -881,6 +1066,7 @@ MODEL_CODE_MAPPING = {
         RainPointRainSensor,
         RainPointAirSensor,
         RainPoint2ZoneTimer,
+        HTV145FRF,
         DiivooWT11W,
         HWG0538WRF,
         HomgarWeatherHub,
