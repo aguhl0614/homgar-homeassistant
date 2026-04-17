@@ -465,6 +465,16 @@ class HTV145FRF(HomgarSubDevice):
     """HTV145FRF 1-Zone Smart Water Timer."""
     MODEL_CODES = [302]
     FRIENDLY_DESC = "HTV145FRF 1-Zone Water Timer"
+    WATER_USAGE_CALIBRATION_POINTS = (
+        (927, 0.1),
+        (7071, 0.7),
+        (11167, 1.1),
+        (20895, 2.1),
+        (22943, 2.4),
+        (29855, 3.1),
+        (45215, 4.6),
+        (59039, 6.1),
+    )
 
     def __init__(self, hub_device_name=None, hub_product_key=None, **kwargs):
         super().__init__(**kwargs)
@@ -485,6 +495,7 @@ class HTV145FRF(HomgarSubDevice):
         self.raw_status = None
         self.candidate_tail_hex = None
         self.candidate_tail_value = None
+        self.water_usage_gallons = None
 
     def get_device_status_ids(self):
         return [f"D{self.address:02d}", "connected", "state"]
@@ -583,6 +594,37 @@ class HTV145FRF(HomgarSubDevice):
                 self.candidate_tail_value = int.from_bytes(bytes.fromhex(tail_hex[:4]), "little")
             except Exception:
                 self.candidate_tail_value = None
+
+        self.water_usage_gallons = self._estimate_water_usage_gallons(self.candidate_tail_value)
+
+    @classmethod
+    def _estimate_water_usage_gallons(cls, tail_value: int | None) -> float | None:
+        """Estimate per-run gallons from the tail value using calibrated interpolation."""
+        if tail_value is None:
+            return None
+
+        points = cls.WATER_USAGE_CALIBRATION_POINTS
+        if not points:
+            return None
+
+        if tail_value <= points[0][0]:
+            x0, y0 = points[0]
+            x1, y1 = points[1]
+        elif tail_value >= points[-1][0]:
+            x0, y0 = points[-2]
+            x1, y1 = points[-1]
+        else:
+            for idx in range(1, len(points)):
+                x0, y0 = points[idx - 1]
+                x1, y1 = points[idx]
+                if tail_value <= x1:
+                    break
+
+        if x1 == x0:
+            return round(y0, 1)
+
+        gallons = y0 + ((tail_value - x0) * (y1 - y0) / (x1 - x0))
+        return round(gallons, 1)
 
     def get_zone_status(self, zone_number: int) -> dict | None:
         return self.zones.get(zone_number)

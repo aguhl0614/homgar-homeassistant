@@ -38,6 +38,7 @@ from .const import (
     ICON_ZONE_STATUS,
     ICON_COUNTDOWN_TIMER,
     ICON_DURATION_SETTING,
+    ICON_WATER_USAGE,
     ZONE_STATUS_ON,
     ZONE_STATUS_OFF_RECENT,
     ZONE_STATUS_OFF_IDLE,
@@ -218,6 +219,13 @@ SENSOR_DESCRIPTIONS = {
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    "water_usage_per_run": SensorEntityDescription(
+        key="water_usage_per_run",
+        name="Water Usage Per Run",
+        native_unit_of_measurement="gal",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon=ICON_WATER_USAGE,
+    ),
 }
 
 
@@ -300,6 +308,7 @@ async def async_setup_entry(
                 HomgarZoneStatusSensor(coordinator, device_id, device, 1),
                 HomgarCountdownTimerSensor(coordinator, device_id, device, 1),
                 HomgarDurationSettingSensor(coordinator, device_id, device, 1),
+                HomgarWaterUsagePerRunSensor(coordinator, device_id, device),
                 HomgarExperimentalRawD01Sensor(coordinator, device_id, device),
                 HomgarExperimentalTailHexSensor(coordinator, device_id, device),
                 HomgarExperimentalTailValueSensor(coordinator, device_id, device),
@@ -646,3 +655,26 @@ class HomgarExperimentalTailValueSensor(HomgarSensor):
     @property
     def native_value(self) -> int | None:
         return getattr(self.device, "candidate_tail_value", None)
+
+
+class HomgarWaterUsagePerRunSensor(HomgarSensor):
+    """Derived per-run water usage sensor for HTV145FRF."""
+
+    def __init__(self, coordinator, device_id, device):
+        super().__init__(
+            coordinator,
+            device_id,
+            device,
+            SENSOR_DESCRIPTIONS["water_usage_per_run"],
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        return getattr(self.device, "water_usage_gallons", None)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs = super().extra_state_attributes
+        attrs["candidate_tail_value"] = getattr(self.device, "candidate_tail_value", None)
+        attrs["candidate_tail_hex"] = getattr(self.device, "candidate_tail_hex", None)
+        return attrs
